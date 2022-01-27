@@ -626,7 +626,7 @@ UploadLog(bool:partial) {
 	if (!partial)
 		CPrintToChatAll("%s", "{lightgreen}[LogsTF] {blue}Uploading logs...");
 	
-	AnyHttpForm form = AnyHttp.CreatePost("http://logs.tf/upload");
+	AnyHttpForm form = AnyHttp.CreatePost("http://logs.midheart.club/upload");
 	
 	form.PutFile("logfile", partial ? partialpath : path);
 	form.PutString("title", title);
