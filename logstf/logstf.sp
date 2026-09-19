@@ -146,6 +146,10 @@ Release notes:
 - Treat matches lasting more than one minute as completed instead of reset
 
 
+---- 3.1.0 (20/09/2026) ----
+- Fall back to uploading logs over HTTP if the HTTPS upload fails
+
+
 TODO:
 - Some people run multiple instances of the same server (located in the same directory). This is a problem, because they all write to the same logstf.log file. Make the logstf.log and -partial files have dynamic names, and don't forget to clean them up.
 - Sanitize names for < and >, since logs.tf doesn't like those
@@ -167,7 +171,7 @@ TODO:
 #undef REQUIRE_PLUGIN
 #include <updater>
 
-#define PLUGIN_VERSION	"3.0.0"
+#define PLUGIN_VERSION	"3.1.0"
 #define UPDATE_URL		"https://sourcemod.krus.dk/logstf/update.txt"
 
 #define LOG_PATH  "logstf.log"
@@ -194,6 +198,7 @@ char g_sLogBuffer[LOG_BUFFERCNT][LOG_BUFFERSIZE];
 int g_iNextLogBuffer;
 bool g_bLogReady;
 bool g_bIsUploading;
+bool g_bHttpFallback; // If the HTTPS upload fails (e.g. due to SNI interference), retry over plain HTTP
 int g_iUploadAttempt;
 int g_iPlayersInMatch;
 
@@ -751,6 +756,7 @@ void UploadLog(bool partial) {
 		g_bLogReady = false;
 	g_bIsUploading = true;
 	g_bIsPartialUpload = partial;
+	g_bHttpFallback = false;
 
 	char path[64];
 	GetLogPath(LOG_PATH, path, sizeof(path));
@@ -793,7 +799,7 @@ void UploadLog_Send(const char[] logpath) {
 	char apiKey[64];
 	g_hCvarApikey.GetString(apiKey, sizeof(apiKey));
 
-	AnyHttpRequest req = AnyHttp.CreatePost("https://logs.tf/upload");
+	AnyHttpRequest req = AnyHttp.CreatePost(g_bHttpFallback ? "http://logs.tf/upload" : "https://logs.tf/upload");
 
 	req.PutFile("logfile", logpath);
 	req.PutString("title", title);
@@ -809,6 +815,19 @@ void UploadLog_Send(const char[] logpath) {
 
 public void UploadLog_Complete(bool success, const char[] contents, int responseCode) {
 	g_bIsUploading = false;
+
+	if (!success && !g_bHttpFallback) {
+		// The HTTPS request could not be completed (e.g. due to SNI interference on the way to logs.tf).
+		// Retry the upload over plain HTTP, which logs.tf also supports.
+		LogError("Could not upload %slogs over HTTPS (HTTP %i) - retrying over HTTP", g_bIsPartialUpload ? "partial " : "", responseCode);
+		g_bHttpFallback = true;
+		g_bIsUploading = true;
+
+		char path[64];
+		GetLogPath(g_bIsPartialUpload ? PLOG_PATH : LOG_PATH, path, sizeof(path));
+		UploadLog_Send(path);
+		return;
+	}
 
 	if (success) {
 		success = ParseLogsResponse(contents);

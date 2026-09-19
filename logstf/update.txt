@@ -4,11 +4,11 @@
 	{
 		"Version"
 		{
-			"Latest"	"3.0.0"
+			"Latest"	"3.1.0"
 		}
-		
-		"Notes"	"Changes in 3.0.0:"
-		"Notes"	"- Treat matches lasting more than one minute as completed instead of reset"
+
+		"Notes"	"Changes in 3.1.0:"
+		"Notes"	"- Fall back to uploading logs over HTTP if the HTTPS upload fails"
 	}
 	
 	"Files"
